@@ -1,7 +1,8 @@
-package main
+package agent
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -21,25 +22,8 @@ type Task struct {
 	Error    error     `json:"error"`
 }
 
-var mu sync.Mutex
 var db *sql.DB
-
-func main() {
-	db, err := sql.Open("sqlite3", "db")
-	if err != nil {
-		fmt.Println("Error opening database:", err)
-		return
-	}
-	defer db.Close()
-
-	numGoroutines := getNumGoroutines()
-
-	for i := 0; i < numGoroutines; i++ {
-		go startWorker(i)
-	}
-
-	select {}
-}
+var mu sync.Mutex
 
 func evaluateExpression(expression string) (float64, error) {
 	var stack []float64
@@ -94,11 +78,25 @@ func getTask() (Task, error) {
 	defer mu.Unlock()
 
 	querySQL := "SELECT * FROM tasks WHERE status='submitted' LIMIT 1;"
-	row := db.QueryRow(querySQL)
-	var task Task
-	err := row.Scan(&task.ID, &task.Status, &task.Received, &task.Content, &task.Result, &task.Error)
+	rows, err := db.Query(querySQL)
 	if err != nil {
+		fmt.Println("Error querying data:", err)
 		return Task{}, err
+	}
+	defer rows.Close()
+
+	var task Task
+	flag := false
+	for rows.Next() {
+		err := rows.Scan(&task.ID, &task.Status, &task.Received, &task.Content, &task.Result, &task.Error)
+		if err != nil {
+			return Task{}, err
+		}
+		flag = true
+		break
+	}
+	if !flag {
+		return Task{}, errors.New("Empty tasks queue")
 	}
 
 	querySQL = "UPDATE tasks SET status='pending' WHERE id=?;"
@@ -127,11 +125,13 @@ func startWorker(workerID int) {
 		task.Result = strconv.FormatFloat(result, 'f', -1, 64)
 		task.Error = err
 
+		mu.Lock()
 		querySQL := "UPDATE tasks SET status='completed', result=?, error=? WHERE id=?;"
 		_, err = db.Exec(querySQL, task.Result, task.Error, task.ID)
 		if err != nil {
 			fmt.Printf("Worker %d: Error sending result: %v\n", workerID, err)
 		}
+		mu.Unlock()
 	}
 }
 
@@ -145,4 +145,26 @@ func getNumGoroutines() int {
 		return 1
 	}
 	return numGoroutines
+}
+
+func main() {
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		db, err := sql.Open("sqlite3", "../db.db")
+		if err != nil {
+			fmt.Println("Error opening database:", err)
+			return
+		}
+		defer db.Close()
+	}()
+	wg.Wait()
+
+	numGoroutines := getNumGoroutines()
+
+	for i := 0; i < numGoroutines; i++ {
+		go startWorker(i)
+	}
+
+	select {}
 }

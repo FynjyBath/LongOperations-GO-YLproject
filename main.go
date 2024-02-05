@@ -1,22 +1,8 @@
 package orchestrator
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"time"
-
-	_ "github.com/mattn/go-sqlite3"
+	"orchestrator/orchestrator"
 )
-
-type Task struct {
-	ID       string    `json:"id"`
-	Status   string    `json:"status"`
-	Received time.Time `json:"received"`
-	Content  string    `json:"content"`
-	Result   string    `json:"result,omitempty"`
-	Error    error     `json:"error"`
-}
 
 func addExpression(w http.ResponseWriter, r *http.Request) {
 	content := r.URL.Query().Get("expression")
@@ -69,12 +55,4 @@ func getTasks(w http.ResponseWriter, r *http.Request) {
 
 	response, _ := json.Marshal(ret)
 	fmt.Fprint(w, response)
-}
-
-func main() {
-	http.HandleFunc("/addExpression", addExpression)
-	http.HandleFunc("/getTasks", getTasks)
-
-	fmt.Println("Orchestrator listening on :8081...")
-	http.ListenAndServe(":8081", nil)
 }
