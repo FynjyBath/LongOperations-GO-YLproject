@@ -31,7 +31,6 @@ var DB *sql.DB
 var MU *sync.Mutex
 
 func eval(expr string) (float64, error) {
-	token.NewFileSet()
 	tr, err := parser.ParseExpr(expr)
 	if err != nil {
 		return 0, err
@@ -60,61 +59,94 @@ func eval(expr string) (float64, error) {
 	rows.Close()
 	(*MU).Unlock()
 
-	result, err := evalAST(tr, &mp)
+	fmt.Println(expr)
+
+	result, err := evaluate(tr, &mp)
 	return result, err
 }
 
-func evalAST(expr ast.Expr, mp *map[rune]int) (float64, error) {
+func evaluate(expr ast.Expr, mp *map[rune]int) (float64, error) {
 	switch expr := expr.(type) {
 	case *ast.BinaryExpr:
-		var wg sync.WaitGroup
-		wg.Add(2)
-		var err1, err2 error
-		var left, right float64
-		go func() {
-			defer wg.Done()
-			left, err1 = evalAST(expr.X, mp)
-		}()
-		go func() {
-			defer wg.Done()
-			right, err2 = evalAST(expr.Y, mp)
-		}()
-		wg.Wait()
-		if err1 != nil {
-			return 0, err1
+		left, err := evaluate(expr.X, mp)
+		if err != nil {
+			return 0, err
 		}
-		if err2 != nil {
-			return 0, err2
+		right, err := evaluate(expr.Y, mp)
+		if err != nil {
+			return 0, err
 		}
+
 		switch expr.Op {
 		case token.ADD:
-			time.Sleep(time.Second * time.Duration((*mp)['+']))
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				time.Sleep(time.Second * time.Duration((*mp)['+']))
+			}()
+			wg.Wait()
 			return left + right, nil
 		case token.SUB:
-			time.Sleep(time.Second * time.Duration((*mp)['-']))
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				time.Sleep(time.Second * time.Duration((*mp)['-']))
+			}()
+			wg.Wait()
 			return left - right, nil
 		case token.MUL:
-			time.Sleep(time.Second * time.Duration((*mp)['*']))
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				time.Sleep(time.Second * time.Duration((*mp)['*']))
+			}()
+			wg.Wait()
 			return left * right, nil
 		case token.QUO:
-			time.Sleep(time.Second * time.Duration((*mp)['/']))
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				time.Sleep(time.Second * time.Duration((*mp)['/']))
+			}()
+			wg.Wait()
 			if right == 0 {
 				return 0, fmt.Errorf("division by zero")
 			}
 			return left / right, nil
 		default:
-			return 0, fmt.Errorf("unsupported operator: %s", expr.Op)
+			return 0, fmt.Errorf("unsupported operator: %v", expr.Op)
 		}
 	case *ast.BasicLit:
-		if expr.Kind == token.INT {
-			value, err := strconv.ParseFloat(expr.Value, 64)
-			if err != nil {
-				return 0, err
-			}
-			return value, nil
+		value, err := strconv.ParseFloat(expr.Value, 64)
+		if err != nil {
+			return 0, err
 		}
+		return value, nil
+	case *ast.ParenExpr:
+		return evaluate(expr.X, mp)
+	case *ast.UnaryExpr:
+		value, err := evaluate(expr.X, mp)
+		if err != nil {
+			return 0, err
+		}
+		if expr.Op == token.SUB {
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				time.Sleep(time.Second * time.Duration((*mp)['-']))
+			}()
+			wg.Wait()
+			return -value, nil
+		}
+		return value, nil
+	default:
+		return 0, fmt.Errorf("unsupported expression type: %T", expr)
 	}
-	return 0, fmt.Errorf("unsupported expression type")
 }
 
 func getTask() (Task, error) {
@@ -192,6 +224,9 @@ func StartWorker(workerID int) {
 			result, err = eval(task.Content)
 		}()
 		wg.Wait()
+		if err != nil {
+			task.Error = err.Error()
+		}
 
 		(*MU).Lock()
 		tx, err = DB.Begin()
@@ -210,9 +245,6 @@ func StartWorker(workerID int) {
 		(*MU).Unlock()
 
 		task.Result = strconv.FormatFloat(result, 'f', -1, 64)
-		if err != nil {
-			task.Error = err.Error()
-		}
 
 		(*MU).Lock()
 		tx, err = DB.Begin()
