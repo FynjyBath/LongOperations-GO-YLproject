@@ -2,4 +2,4 @@ module agent
 
 go 1.21.1
 
-require github.com/Knetic/govaluate v3.0.0+incompatible
+require github.com/mattn/go-sqlite3 v1.14.22
