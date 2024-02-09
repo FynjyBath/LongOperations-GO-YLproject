@@ -175,7 +175,8 @@ func getTask() (Task, error) {
 	return task, nil
 }
 
-func StartWorker(workerID int) {
+func StartWorker() {
+	workerID, _ := strconv.Atoi(fmt.Sprintf("%d", time.Now().UnixNano()))
 	(*MU).Lock()
 	tx, err := DB.Begin()
 	if err != nil {
@@ -266,6 +267,5 @@ func StartWorker(workerID int) {
 }
 
 func main() {
-	s, _ := strconv.Atoi(fmt.Sprintf("%d", time.Now().UnixNano()))
-	StartWorker(s)
+	StartWorker()
 }

@@ -12,6 +12,11 @@ import (
 
 var MU sync.Mutex
 
+func AddWorker(w http.ResponseWriter, r *http.Request) {
+	go agent.StartWorker()
+	http.Redirect(w, r, "/checkWorkers", http.StatusSeeOther)
+}
+
 func main() {
 	var err error
 	numGoroutines := max(1, int(runtime.NumCPU()) - 2)
@@ -47,9 +52,7 @@ func main() {
 
 	go orchestrator.ValidTasks()
 	fmt.Println("Goroutine with checking task started")
-	for i := 0; i < numGoroutines; i++ {
-		go agent.StartWorker(i)
-	}
+	go agent.StartWorker()
 	fmt.Println("Goroutines with workers started: ", numGoroutines)
 
 	http.HandleFunc("/addExpression", orchestrator.AddExpression)
@@ -58,6 +61,7 @@ func main() {
 	http.HandleFunc("/changeTimes", orchestrator.ChangeTimes)
 	http.HandleFunc("/receiveTimes", orchestrator.ReceiveTimes)
 	http.HandleFunc("/checkWorkers", orchestrator.CheckWorkers)
+	http.HandleFunc("/addWorker", AddWorker)
 
 	fmt.Println("Orchestrator listening on :8081...")
 	http.ListenAndServe(":8081", nil)

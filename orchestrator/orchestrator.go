@@ -346,7 +346,8 @@ func CheckWorkers(w http.ResponseWriter, r *http.Request) {
 		s += "</tr>"
 	}
 	s += `	</tbody>
-		</table>`
+		</table>
+		<button onclick="window.location.href='/addWorker';">Запустить ещё один Worker</button>`
 
 	data := struct {
 		Title   string
