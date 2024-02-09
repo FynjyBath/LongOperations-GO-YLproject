@@ -176,31 +176,15 @@ func ReceiveExpression(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, "Expression '%s' submitted. Check status later with ID: %s\n", content, taskID)
+	http.Redirect(w, r, "/getTasks", http.StatusSeeOther)
 }
 
 func AddExpression(w http.ResponseWriter, r *http.Request) {
-	s := `<form id="myForm">
+	s := `<form id="myForm" action="/receiveExpression" method="post">
 				<label for="inputValue">Введите арифметическое выражение:</label><br>
 				<input type="text" id="inputValue" name="inputValue"><br>
-				<button type="button" onclick="sendValue()">Добавить задачу</button>
-			</form>
-			
-			<script>
-			function sendValue() {
-				var inputValue = document.getElementById("inputValue").value;
-				var xhttp = new XMLHttpRequest();
-				xhttp.onreadystatechange = function() {
-				if (this.readyState == 4 && this.status == 200) {
-					console.log("Значение успешно отправлено на сервер");
-					window.location.href = "/getTasks";
-				}
-				};
-				xhttp.open("POST", "/receiveExpression", true);
-				xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
-				xhttp.send("inputValue=" + inputValue.replace(/\+/g, "%2B"));
-			}
-			</script>`
+				<button class="submit">Добавить задачу</button>
+			</form>`
 
 	data := struct {
 		Title   string

@@ -8,6 +8,8 @@
         .navbar {
             overflow: hidden;
             background-color: #333;
+            font-family: Arial, sans-serif;
+            border-radius: 5px;
         }
         
         .navbar a {
@@ -17,6 +19,7 @@
             text-align: center;
             padding: 14px 20px;
             text-decoration: none;
+            transition: background-color 0.3s ease;
         }
         
         .navbar a:hover {
@@ -56,25 +59,22 @@
         border-radius: 4px; /* Скругление углов поля */
         }
 
-        /* Стили для кнопки */
         button {
-        background-color: #4CAF50; /* Цвет фона кнопки */
-        color: white; /* Цвет текста на кнопке */
-        padding: 14px 20px; /* Отступы внутри кнопки */
-        margin: 8px 0; /* Внешние отступы кнопки */
-        border: none; /* Убираем границы у кнопки */
-        border-radius: 4px; /* Скругление углов кнопки */
-        cursor: pointer; /* Указатель при наведении */
+            background-color: #000000; /* черный цвет фона */
+            color: #ffffff; /* белый цвет текста */
+            border: none;
+            padding: 15px 30px;
+            margin-top: 20px;
+            font-size: 18px;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2); /* тень */
+            transition: background 0.3s, color 0.3s;
         }
 
-        /* Стили для кнопки при наведении */
         button:hover {
-        background-color: #45a049; /* Цвет фона кнопки при наведении */
-        }
-
-        /* Стили для кнопки при нажатии */
-        button:active {
-        background-color: #3e8e41; /* Цвет фона кнопки при нажатии */
+            background-color: #ddd; /* белый цвет фона при наведении */
+            color: #000000; /* черный цвет текста при наведении */
         }
     </style>
 </head>

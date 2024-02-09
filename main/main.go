@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"orchestrator"
-	"runtime"
 	"sync"
 )
 
@@ -19,7 +18,6 @@ func AddWorker(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	var err error
-	numGoroutines := max(1, int(runtime.NumCPU()) - 2)
 
 	orchestrator.MU = &MU
 	agent.MU = &MU
@@ -53,7 +51,7 @@ func main() {
 	go orchestrator.ValidTasks()
 	fmt.Println("Goroutine with checking task started")
 	go agent.StartWorker()
-	fmt.Println("Goroutines with workers started: ", numGoroutines)
+	fmt.Println("Goroutines with workers started: 1")
 
 	http.HandleFunc("/addExpression", orchestrator.AddExpression)
 	http.HandleFunc("/receiveExpression", orchestrator.ReceiveExpression)
