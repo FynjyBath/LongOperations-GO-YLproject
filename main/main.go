@@ -28,10 +28,11 @@ func main() {
 		return
 	}
 
-	_, err = orchestrator.DB.Exec("DELETE FROM tasks;")
+	/*_, err = orchestrator.DB.Exec("DELETE FROM tasks;")
 	if err != nil {
 		return
-	}
+	}*/
+	// раскомментить чтобы удалять старое перед запуском
 
 	_, err = orchestrator.DB.Exec("DELETE FROM workers;")
 	if err != nil {
