@@ -9,6 +9,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -19,6 +20,7 @@ type Task struct {
 	Content  string `json:"content"`
 	Result   string `json:"result,omitempty"`
 	Error    string `json:"error"`
+	User     string `json:"user"`
 }
 
 type Operation struct {
@@ -34,6 +36,12 @@ type Worker struct {
 var DB *sql.DB
 var MU *sync.Mutex
 
+const hmacSampleSecret = "ILoveUlyanovskVeryMuch"
+
+func generateID() string {
+	return fmt.Sprintf("%d", time.Now().UnixNano())
+}
+
 func ReceiveTimes(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -45,6 +53,22 @@ func ReceiveTimes(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error parsing form", http.StatusInternalServerError)
 		return
 	}
+
+	tokenString := r.FormValue("jwt_token")
+	tokenFromString, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(hmacSampleSecret), nil
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	claims, ok := tokenFromString.Claims.(jwt.MapClaims)
+	if !ok {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	login := claims["login"]
 
 	tx, err := DB.Begin()
 	if err != nil {
@@ -59,10 +83,10 @@ func ReceiveTimes(w http.ResponseWriter, r *http.Request) {
 	mp['/'], err = strconv.Atoi(r.FormValue("number4"))
 
 	for op, num := range mp {
-		insertDataSQL := "UPDATE times SET time=? WHERE operation=?;"
-		_, err = DB.Exec(insertDataSQL, num, op)
-		insertDataSQL = "INSERT OR IGNORE INTO times VALUES (?, ?);"
-		_, err = DB.Exec(insertDataSQL, op, num)
+		insertDataSQL := "UPDATE times SET time=? WHERE operation=? AND user=?;"
+		_, err = DB.Exec(insertDataSQL, num, op, login)
+		insertDataSQL = "INSERT OR IGNORE INTO times VALUES (?, ?, ?);"
+		_, err = DB.Exec(insertDataSQL, op, num, login)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -70,18 +94,34 @@ func ReceiveTimes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/getTasks", http.StatusSeeOther)
+	http.Redirect(w, r, "/getTasks?jwt_token="+tokenString, http.StatusSeeOther)
 }
 
 func ChangeTimes(w http.ResponseWriter, r *http.Request) {
+	tokenString := r.URL.Query().Get("jwt_token")
+	tokenFromString, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(hmacSampleSecret), nil
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	claims, ok := tokenFromString.Claims.(jwt.MapClaims)
+	if !ok {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	login := claims["login"]
+
 	(*MU).Lock()
 	var op Operation
 	mp := make(map[rune]int)
-	querySQL := "SELECT * FROM times;"
-	rows, err := DB.Query(querySQL)
+	querySQL := "SELECT operation, time FROM times WHERE user = ?;"
+	rows, err := DB.Query(querySQL, login)
 	if err != nil {
 		(*MU).Unlock()
-		fmt.Printf(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	mp['+'] = 1
@@ -115,17 +155,23 @@ func ChangeTimes(w http.ResponseWriter, r *http.Request) {
             <label for="number4">/:</label>
             <input type="number" id="number4" name="number4" value="%d" required>
         </div>
+		<div>
+            <label for="jwt_token">Token:</label>
+            <input type="string" id="jwt_token" name="jwt_token" value="%s" readonly required>
+        </div>
         <button type="submit">Изменить</button>
-    </form>`, mp['+'], mp['-'], mp['*'], mp['/'])
+    </form>`, mp['+'], mp['-'], mp['*'], mp['/'], tokenString)
 
 	data := struct {
 		Title   string
 		Header  string
 		Content string
+		Token   string
 	}{
 		Title:   "Время выполнения",
 		Header:  "Изменить время выполнения (в секундах):",
 		Content: s,
+		Token:   tokenString,
 	}
 
 	tmpl, err := template.ParseFiles("../templates/template.html")
@@ -153,6 +199,22 @@ func ReceiveExpression(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tokenString := r.FormValue("jwt_token")
+	tokenFromString, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(hmacSampleSecret), nil
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	claims, ok := tokenFromString.Claims.(jwt.MapClaims)
+	if !ok {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	login := claims["login"]
+
 	(*MU).Lock()
 	defer (*MU).Unlock()
 
@@ -164,8 +226,8 @@ func ReceiveExpression(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	insertDataSQL := "INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?);"
-	_, err = DB.Exec(insertDataSQL, taskID, "submitted", time.Now(), content, 0, "")
+	insertDataSQL := "INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?);"
+	_, err = DB.Exec(insertDataSQL, taskID, "submitted", time.Now(), content, 0, "", login)
 	if err != nil {
 		fmt.Fprintf(w, err.Error())
 		return
@@ -176,24 +238,47 @@ func ReceiveExpression(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/getTasks", http.StatusSeeOther)
+	http.Redirect(w, r, "/getTasks?jwt_token="+tokenString, http.StatusSeeOther)
 }
 
 func AddExpression(w http.ResponseWriter, r *http.Request) {
-	s := `<form id="myForm" action="/receiveExpression" method="post">
-				<label for="inputValue">Введите арифметическое выражение:</label><br>
-				<input type="text" id="inputValue" name="inputValue"><br>
+	tokenString := r.URL.Query().Get("jwt_token")
+	tokenFromString, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(hmacSampleSecret), nil
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	_, ok := tokenFromString.Claims.(jwt.MapClaims)
+	if !ok {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	s := fmt.Sprintf(`<form id="myForm" action="/receiveExpression" method="post">
+				<div>
+				    <label for="inputValue">Введите арифметическое выражение:</label>
+					<input type="text" id="inputValue" name="inputValue">
+				</div>
+				<div>
+					<label for="jwt_token">Token:</label>
+					<input type="string" id="jwt_token" name="jwt_token" value="%s" readonly required>
+				</div>
 				<button class="submit">Добавить задачу</button>
-			</form>`
+			</form>`, tokenString)
 
 	data := struct {
 		Title   string
 		Header  string
 		Content string
+		Token   string
 	}{
 		Title:   "Добавить задачу",
 		Header:  "",
 		Content: s,
+		Token:   tokenString,
 	}
 
 	tmpl, err := template.ParseFiles("../templates/template.html")
@@ -208,16 +293,28 @@ func AddExpression(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func generateID() string {
-	return fmt.Sprintf("%d", time.Now().UnixNano())
-}
-
 func GetTasks(w http.ResponseWriter, r *http.Request) {
+	tokenString := r.URL.Query().Get("jwt_token")
+	tokenFromString, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(hmacSampleSecret), nil
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	claims, ok := tokenFromString.Claims.(jwt.MapClaims)
+	if !ok {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	login := claims["login"]
+
 	(*MU).Lock()
 	defer (*MU).Unlock()
 
-	querySQL := "SELECT * FROM tasks;"
-	rows, err := DB.Query(querySQL)
+	querySQL := "SELECT * FROM tasks WHERE user=?;"
+	rows, err := DB.Query(querySQL, login)
 	if err != nil {
 		fmt.Println("Error querying data:", err)
 		return
@@ -227,7 +324,7 @@ func GetTasks(w http.ResponseWriter, r *http.Request) {
 	var ret []Task
 	for rows.Next() {
 		var task Task
-		err := rows.Scan(&task.ID, &task.Status, &task.Received, &task.Content, &task.Result, &task.Error)
+		err := rows.Scan(&task.ID, &task.Status, &task.Received, &task.Content, &task.Result, &task.Error, &task.User)
 		if err != nil {
 			fmt.Fprintf(w, "Error scanning: "+err.Error())
 			return
@@ -268,10 +365,12 @@ func GetTasks(w http.ResponseWriter, r *http.Request) {
 		Title   string
 		Header  string
 		Content string
+		Token   string
 	}{
 		Title:   "Задачи",
 		Header:  "Архив задач:",
 		Content: s,
+		Token:   tokenString,
 	}
 
 	tmpl, err := template.ParseFiles("../templates/template.html")
@@ -287,6 +386,21 @@ func GetTasks(w http.ResponseWriter, r *http.Request) {
 }
 
 func CheckWorkers(w http.ResponseWriter, r *http.Request) {
+	tokenString := r.URL.Query().Get("jwt_token")
+	tokenFromString, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(hmacSampleSecret), nil
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	_, ok := tokenFromString.Claims.(jwt.MapClaims)
+	if !ok {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
 	(*MU).Lock()
 	defer (*MU).Unlock()
 
@@ -337,10 +451,12 @@ func CheckWorkers(w http.ResponseWriter, r *http.Request) {
 		Title   string
 		Header  string
 		Content string
+		Token string
 	}{
 		Title:   "Workers",
 		Header:  "Workers active now:",
 		Content: s,
+		Token: tokenString,
 	}
 
 	tmpl, err := template.ParseFiles("../templates/template.html")
@@ -368,7 +484,7 @@ func ValidTasks() {
 		var ret []Task
 		for rows.Next() {
 			var task Task
-			err := rows.Scan(&task.ID, &task.Status, &task.Received, &task.Content, &task.Result, &task.Error)
+			err := rows.Scan(&task.ID, &task.Status, &task.Received, &task.Content, &task.Result, &task.Error, &task.User)
 			if err != nil {
 				fmt.Println("Error scanning data:", err)
 				return
@@ -398,7 +514,7 @@ func ValidTasks() {
 				if err != nil {
 					fmt.Printf("Error: %v\n", err)
 				}
-				
+
 				if err := tx.Commit(); err != nil {
 					fmt.Printf(err.Error())
 				}

@@ -81,10 +81,10 @@
 <body>
 
 <div class="navbar">
-    <a href="/addExpression">Добавить выражение</a>
-    <a href="/getTasks">Все выражения</a>
-    <a href="/checkWorkers">Проверить workers</a>
-    <a href="/changeTimes">Изменить время выполнения операций</a>
+    <a href="/addExpression?jwt_token={{.Token}}">Добавить выражение</a>
+    <a href="/getTasks?jwt_token={{.Token}}">Все выражения</a>
+    <a href="/checkWorkers?jwt_token={{.Token}}">Проверить workers</a>
+    <a href="/changeTimes?jwt_token={{.Token}}">Изменить время выполнения операций</a>
 </div>
 
 <h1>{{.Header}}</h1>

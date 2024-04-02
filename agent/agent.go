@@ -20,6 +20,7 @@ type Task struct {
 	Content  string `json:"content"`
 	Result   string `json:"result,omitempty"`
 	Error    string `json:"error"`
+	User     string `json:"user"`
 }
 
 type Operation struct {
@@ -30,7 +31,7 @@ type Operation struct {
 var DB *sql.DB
 var MU *sync.Mutex
 
-func eval(expr string) (float64, error) {
+func eval(expr, login string) (float64, error) {
 	tr, err := parser.ParseExpr(expr)
 	if err != nil {
 		return 0, err
@@ -39,8 +40,8 @@ func eval(expr string) (float64, error) {
 	mp := make(map[rune]int)
 	(*MU).Lock()
 	var op Operation
-	querySQL := "SELECT * FROM times;"
-	rows, err := DB.Query(querySQL)
+	querySQL := "SELECT operation, time FROM times WHERE user=?;"
+	rows, err := DB.Query(querySQL, login)
 	if err != nil {
 		(*MU).Unlock()
 		return 0, err
@@ -157,7 +158,7 @@ func getTask() (Task, error) {
 
 	var task Task
 	querySQL := "SELECT * FROM tasks WHERE status='submitted';"
-	err = DB.QueryRow(querySQL, 1).Scan(&task.ID, &task.Status, &task.Received, &task.Content, &task.Result, &task.Error)
+	err = DB.QueryRow(querySQL, 1).Scan(&task.ID, &task.Status, &task.Received, &task.Content, &task.Result, &task.Error, &task.User)
 	if err != nil {
 		return Task{}, err
 	}
@@ -222,7 +223,7 @@ func StartWorker() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			result, err = eval(task.Content)
+			result, err = eval(task.Content, task.User)
 		}()
 		wg.Wait()
 		if err != nil {
