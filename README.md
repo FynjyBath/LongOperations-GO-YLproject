@@ -1,4 +1,4 @@
-<h2>Прошу писать по всем вопросам в Telegram [по ссылке](https://t.me/FynjyBath).</h2>
+<h2>Прошу писать по всем вопросам в Telegram https://t.me/FynjyBath.</h2>
 
 <h3>Перед запуском:</h3>
 Возможно потребуется установить пакет <em>github.com/mattn/go-sqlite3</em>, он прописан в require.
