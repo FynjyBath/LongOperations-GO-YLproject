@@ -20,7 +20,8 @@ const hmacSampleSecret = "ILoveUlyanovskVeryMuch"
 
 func AddWorker(w http.ResponseWriter, r *http.Request) {
 	go agent.StartWorker()
-	http.Redirect(w, r, "/checkWorkers", http.StatusSeeOther)
+	tokenString := r.URL.Query().Get("jwt_token")
+	http.Redirect(w, r, "/checkWorkers?jwt_token=" + tokenString, http.StatusSeeOther)
 }
 
 func Register(w http.ResponseWriter, r *http.Request) {

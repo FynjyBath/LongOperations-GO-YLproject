@@ -77,16 +77,16 @@ func ReceiveTimes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	mp := make(map[rune]int)
-	mp['+'], err = strconv.Atoi(r.FormValue("number1"))
-	mp['-'], err = strconv.Atoi(r.FormValue("number2"))
-	mp['*'], err = strconv.Atoi(r.FormValue("number3"))
-	mp['/'], err = strconv.Atoi(r.FormValue("number4"))
+	mp['+'], _ = strconv.Atoi(r.FormValue("number1"))
+	mp['-'], _ = strconv.Atoi(r.FormValue("number2"))
+	mp['*'], _ = strconv.Atoi(r.FormValue("number3"))
+	mp['/'], _ = strconv.Atoi(r.FormValue("number4"))
 
 	for op, num := range mp {
-		insertDataSQL := "UPDATE times SET time=? WHERE operation=? AND user=?;"
-		_, err = DB.Exec(insertDataSQL, num, op, login)
-		insertDataSQL = "INSERT OR IGNORE INTO times VALUES (?, ?, ?);"
+		insertDataSQL := "INSERT OR IGNORE INTO times VALUES (?, ?, ?);"
 		_, err = DB.Exec(insertDataSQL, op, num, login)
+		insertDataSQL = "UPDATE times SET time=? WHERE operation=? AND user=?;"
+		_, err = DB.Exec(insertDataSQL, num, op, login)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -445,7 +445,7 @@ func CheckWorkers(w http.ResponseWriter, r *http.Request) {
 	}
 	s += `	</tbody>
 		</table>
-		<button onclick="window.location.href='/addWorker';">Запустить ещё один Worker</button>`
+		<button onclick="window.location.href='/addWorker?jwt_token=`+tokenString+`';">Запустить ещё один Worker</button>`
 
 	data := struct {
 		Title   string
